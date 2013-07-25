@@ -248,7 +248,21 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
         Element root=doc.getDocumentElement();
         if(!root.getTagName().equals("jboss-deployment-structure"))
             throw new MojoFailureException("Root element is not jboss-deployment-structure");
-        
+
+        Element deployment=(Element)xp_deployment.evaluate(doc,XPathConstants.NODE);
+        if(deployment==null) {
+            deployment=doc.createElement("deployment");
+            root.insertBefore(deployment,root.getFirstChild());
+        }
+
+        Element depDependencies=(Element)xp_dependencies.evaluate(deployment,XPathConstants.NODE);
+        if(depDependencies==null) {
+            depDependencies=doc.createElement("dependencies");
+            deployment.appendChild(depDependencies);
+        }
+
+        fillModuleEntries(doc,depDependencies,moduleMap.values());
+
         if(subdeployments!=null&&!subdeployments.isEmpty()) {
             for(SubDeployment sd:subdeployments) {
                 XPathExpression xp=xpf.newXPath().
@@ -259,35 +273,24 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
                     root.appendChild(subEl);
                     subEl.setAttribute("name",sd.getName());
                 }
-                Element dependencies=(Element)xp_dependencies.evaluate(subEl,XPathConstants.NODE);
-                if(dependencies==null) {
-                    dependencies=doc.createElement("dependencies");
-                    subEl.appendChild(dependencies);
+                Element subDependencies=(Element)xp_dependencies.evaluate(subEl,XPathConstants.NODE);
+                if(subDependencies==null) {
+                    subDependencies=doc.createElement("dependencies");
+                    subEl.appendChild(subDependencies);
                 }
                 Set<String> modules=new HashSet<String>();
                 xp=xpf.newXPath().
                     compile("/jboss-deployment-structure/deployment/dependencies/module/@name");
                 NodeList nl=(NodeList)xp.evaluate(sd.getDocument(),XPathConstants.NODESET);
                 int n=nl.getLength();
-                for(int i=0;i<n;i++)
+                for(int i=0;i<n;i++) {
+                    if (moduleMap.values().contains(nl.item(i).getTextContent()))
+                        continue;
                     modules.add(nl.item(i).getTextContent());
+                }
                 getLog().debug("From "+sd.getName()+":"+modules);
-                fillModuleEntries(doc,dependencies,modules);
+                fillModuleEntries(doc,subDependencies,modules);
             }
-        } else {
-            Element deployment=(Element)xp_deployment.evaluate(doc,XPathConstants.NODE);
-            if(deployment==null) {
-                deployment=doc.createElement("deployment");
-                root.insertBefore(deployment,root.getFirstChild());
-            }
-            
-            Element dependencies=(Element)xp_dependencies.evaluate(deployment,XPathConstants.NODE);
-            if(dependencies==null) {
-                dependencies=doc.createElement("dependencies");
-                deployment.appendChild(dependencies);
-            }
-            
-            fillModuleEntries(doc,dependencies,moduleMap.values());
         }
     }
 
