@@ -26,11 +26,6 @@ import java.util.Set;
 import java.util.TreeSet;
 
 import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.transform.OutputKeys;
-import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerFactory;
-import javax.xml.transform.dom.DOMSource;
-import javax.xml.transform.stream.StreamResult;
 
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.plugin.AbstractMojo;
@@ -39,6 +34,9 @@ import org.apache.maven.plugins.annotations.Component;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 import org.w3c.dom.Document;
+import org.w3c.dom.ls.DOMImplementationLS;
+import org.w3c.dom.ls.LSOutput;
+import org.w3c.dom.ls.LSSerializer;
 
 
 /**
@@ -156,14 +154,13 @@ public abstract class  AbstractEAP6Mojo extends AbstractMojo {
         File destinationFile = new File(workDirectory, fileName);
         try {
             FileOutputStream ostream = new FileOutputStream(destinationFile);
-            TransformerFactory tf = TransformerFactory.newInstance();
-            Transformer transformer = tf.newTransformer();
-            transformer.setOutputProperty(OutputKeys.METHOD, "xml");
-            transformer.setOutputProperty(OutputKeys.INDENT, "yes");
-            transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
-            transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "no");
-            transformer.transform(new DOMSource(doc), new StreamResult(ostream));
-            ostream.close();
+            final DOMImplementationLS domImplementation = (DOMImplementationLS) doc.getImplementation();
+            final LSSerializer lsSerializer = domImplementation.createLSSerializer();
+            lsSerializer.getDomConfig().setParameter("format-pretty-print", Boolean.TRUE);
+
+            final LSOutput lsOutput = domImplementation.createLSOutput();
+            lsOutput.setByteStream(ostream);
+            lsSerializer.write(doc,lsOutput);
         } catch (Exception e) {
             throw new MojoFailureException("Cannot write output file", e);
         }
