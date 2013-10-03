@@ -60,7 +60,7 @@ wsdl4j:wsdl4j=javax.wsdl4j.api
 
 xalan:serializer=javax.xml.jaxp-provider
 xalan:xalan=javax.xml.jaxp-provider
-xerces:xercesImpl=javax.xml.jaxp-provider
+xerces:xercesImpl=org.apache.xerces
 org.codehaus.woodstox:stax2-api=javax.xml.jaxp-provider
 org.codehaus.woodstox:woodstox-core-asl=javax.xml.jaxp-provider
 
