@@ -22,7 +22,7 @@
   <artifactId>eap6-maven-plugin</artifactId>
   <packaging>maven-plugin</packaging>
   <name>EAP6 Plugin</name>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
   <licenses>
     <license>
       <name>Apache License Version 2.0</name>

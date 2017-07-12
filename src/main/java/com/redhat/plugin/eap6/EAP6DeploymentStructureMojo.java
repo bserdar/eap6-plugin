@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
-import java.io.IOException;
 
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -150,6 +149,7 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
     private static XPathExpression xp_module;
     private static XPathExpression xp_deployment;
     private static XPathExpression xp_dependencies;
+    private static XPathExpression xp_exclusions;
 
     private static final String JBOSS_DEPLOYMENT_STRUCTURE="jboss-deployment-structure.xml";
     private static final String JBOSS_SUBDEPLOYMENT="jboss-subdeployment.xml";
@@ -162,6 +162,7 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
             xp_deployment=xpf.newXPath().
                 compile("/jboss-deployment-structure/deployment");
             xp_dependencies=xpf.newXPath().compile("dependencies");
+            xp_exclusions=xpf.newXPath().compile("exclusions");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -278,20 +279,38 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
                     subDependencies=doc.createElement("dependencies");
                     subEl.appendChild(subDependencies);
                 }
-                Set<String> modules=new HashSet<String>();
-                xp=xpf.newXPath().
-                    compile("/jboss-deployment-structure/deployment/dependencies/module/@name");
-                NodeList nl=(NodeList)xp.evaluate(sd.getDocument(),XPathConstants.NODESET);
-                int n=nl.getLength();
-                for(int i=0;i<n;i++) {
-                    if (moduleMap.values().contains(nl.item(i).getTextContent()))
-                        continue;
-                    modules.add(nl.item(i).getTextContent());
+                Set<String> depModules = extractModules(
+                        xpf.newXPath().compile("/jboss-deployment-structure/deployment/dependencies/module/@name"),
+                        moduleMap, sd);
+                getLog().debug("From "+sd.getName()+":"+depModules);
+                fillModuleEntries(doc,subDependencies,depModules);
+                
+                Set<String> exModules = extractModules(
+                        xpf.newXPath().compile("/jboss-deployment-structure/deployment/exclusions/module/@name"),
+                        moduleMap, sd);
+                if(!exModules.isEmpty()){
+                    Element subExclusions=(Element)xp_exclusions.evaluate(subEl,XPathConstants.NODE);
+                    if(subExclusions==null) {
+                        subExclusions=doc.createElement("exclusions");
+                        subEl.appendChild(subExclusions);
+                    }
+                    fillModuleEntries(doc,subExclusions,exModules);
                 }
-                getLog().debug("From "+sd.getName()+":"+modules);
-                fillModuleEntries(doc,subDependencies,modules);
             }
         }
+    }
+
+
+    private Set<String> extractModules(XPathExpression xp, Map<Artifact, String> moduleMap, SubDeployment sd) throws XPathExpressionException {
+        Set<String> modules=new HashSet<String>();
+        NodeList nl=(NodeList)xp.evaluate(sd.getDocument(),XPathConstants.NODESET);
+        int n=nl.getLength();
+        for(int i=0;i<n;i++) {
+            if (moduleMap.values().contains(nl.item(i).getTextContent()))
+                continue;
+            modules.add(nl.item(i).getTextContent());
+        }
+        return modules;
     }
 
     protected void fillModuleEntries(Document doc,Element dependencies,Collection<String> modules) 
