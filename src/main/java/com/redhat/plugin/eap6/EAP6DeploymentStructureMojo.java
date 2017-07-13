@@ -149,7 +149,6 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
     private static XPathExpression xp_module;
     private static XPathExpression xp_deployment;
     private static XPathExpression xp_dependencies;
-    private static XPathExpression xp_exclusions;
 
     private static final String JBOSS_DEPLOYMENT_STRUCTURE="jboss-deployment-structure.xml";
     private static final String JBOSS_SUBDEPLOYMENT="jboss-subdeployment.xml";
@@ -162,7 +161,6 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
             xp_deployment=xpf.newXPath().
                 compile("/jboss-deployment-structure/deployment");
             xp_dependencies=xpf.newXPath().compile("dependencies");
-            xp_exclusions=xpf.newXPath().compile("exclusions");
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
@@ -289,13 +287,26 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
                         xpf.newXPath().compile("/jboss-deployment-structure/deployment/exclusions/module/@name"),
                         moduleMap, sd);
                 if(!exModules.isEmpty()){
-                    Element subExclusions=(Element)xp_exclusions.evaluate(subEl,XPathConstants.NODE);
+                    Element subExclusions=(Element)xpf.newXPath().compile("exclusions").evaluate(subEl,XPathConstants.NODE);
                     if(subExclusions==null) {
                         subExclusions=doc.createElement("exclusions");
                         subEl.appendChild(subExclusions);
                     }
                     fillModuleEntries(doc,subExclusions,exModules);
                 }
+                
+                Set<String> exSubsystems = extractModules(
+                        xpf.newXPath().compile("/jboss-deployment-structure/deployment/exclude-subsystems/subsystem/@name"),
+                        moduleMap, sd);
+                if(!exSubsystems.isEmpty()){
+                    Element subsysExclusions=(Element)xpf.newXPath().compile("exclude-subsystems").evaluate(subEl,XPathConstants.NODE);
+                    if(subsysExclusions==null) {
+                        subsysExclusions=doc.createElement("exclude-subsystems");
+                        subEl.appendChild(subsysExclusions);
+                    }
+                    fillEntries("subsystem", doc,subsysExclusions,exSubsystems);
+                }
+                
             }
         }
     }
@@ -313,12 +324,17 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
         return modules;
     }
 
-    protected void fillModuleEntries(Document doc,Element dependencies,Collection<String> modules) 
+    protected void fillModuleEntries(Document doc,Element dependencies,Collection<String> modules)
+            throws XPathExpressionException {
+        fillEntries("module", doc, dependencies, modules);
+    }
+    
+    protected void fillEntries(String elementName, Document doc,Element dependencies,Collection<String> modules) 
         throws XPathExpressionException {
         for(String module:modules) {
-            XPathExpression xp=xpf.newXPath().compile("module [@name=\""+module+"\"]");
+            XPathExpression xp=xpf.newXPath().compile(elementName + " [@name=\""+module+"\"]");
             if(xp.evaluate(dependencies,XPathConstants.NODE)==null) {
-                Element moduleEl=doc.createElement("module");
+                Element moduleEl=doc.createElement(elementName);
                 moduleEl.setAttribute("name",module);
                 dependencies.appendChild(moduleEl);
             }
