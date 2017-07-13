@@ -22,7 +22,6 @@ import java.io.File;
 import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.InputStream;
-import java.io.IOException;
 
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -278,28 +277,64 @@ public class EAP6DeploymentStructureMojo extends AbstractEAP6Mojo {
                     subDependencies=doc.createElement("dependencies");
                     subEl.appendChild(subDependencies);
                 }
-                Set<String> modules=new HashSet<String>();
-                xp=xpf.newXPath().
-                    compile("/jboss-deployment-structure/deployment/dependencies/module/@name");
-                NodeList nl=(NodeList)xp.evaluate(sd.getDocument(),XPathConstants.NODESET);
-                int n=nl.getLength();
-                for(int i=0;i<n;i++) {
-                    if (moduleMap.values().contains(nl.item(i).getTextContent()))
-                        continue;
-                    modules.add(nl.item(i).getTextContent());
+                Set<String> depModules = extractModules(
+                        xpf.newXPath().compile("/jboss-deployment-structure/deployment/dependencies/module/@name"),
+                        moduleMap, sd);
+                getLog().debug("From "+sd.getName()+":"+depModules);
+                fillModuleEntries(doc,subDependencies,depModules);
+                
+                Set<String> exModules = extractModules(
+                        xpf.newXPath().compile("/jboss-deployment-structure/deployment/exclusions/module/@name"),
+                        moduleMap, sd);
+                if(!exModules.isEmpty()){
+                    Element subExclusions=(Element)xpf.newXPath().compile("exclusions").evaluate(subEl,XPathConstants.NODE);
+                    if(subExclusions==null) {
+                        subExclusions=doc.createElement("exclusions");
+                        subEl.appendChild(subExclusions);
+                    }
+                    fillModuleEntries(doc,subExclusions,exModules);
                 }
-                getLog().debug("From "+sd.getName()+":"+modules);
-                fillModuleEntries(doc,subDependencies,modules);
+                
+                Set<String> exSubsystems = extractModules(
+                        xpf.newXPath().compile("/jboss-deployment-structure/deployment/exclude-subsystems/subsystem/@name"),
+                        moduleMap, sd);
+                if(!exSubsystems.isEmpty()){
+                    Element subsysExclusions=(Element)xpf.newXPath().compile("exclude-subsystems").evaluate(subEl,XPathConstants.NODE);
+                    if(subsysExclusions==null) {
+                        subsysExclusions=doc.createElement("exclude-subsystems");
+                        subEl.appendChild(subsysExclusions);
+                    }
+                    fillEntries("subsystem", doc,subsysExclusions,exSubsystems);
+                }
+                
             }
         }
     }
 
-    protected void fillModuleEntries(Document doc,Element dependencies,Collection<String> modules) 
+
+    private Set<String> extractModules(XPathExpression xp, Map<Artifact, String> moduleMap, SubDeployment sd) throws XPathExpressionException {
+        Set<String> modules=new HashSet<String>();
+        NodeList nl=(NodeList)xp.evaluate(sd.getDocument(),XPathConstants.NODESET);
+        int n=nl.getLength();
+        for(int i=0;i<n;i++) {
+            if (moduleMap.values().contains(nl.item(i).getTextContent()))
+                continue;
+            modules.add(nl.item(i).getTextContent());
+        }
+        return modules;
+    }
+
+    protected void fillModuleEntries(Document doc,Element dependencies,Collection<String> modules)
+            throws XPathExpressionException {
+        fillEntries("module", doc, dependencies, modules);
+    }
+    
+    protected void fillEntries(String elementName, Document doc,Element dependencies,Collection<String> modules) 
         throws XPathExpressionException {
         for(String module:modules) {
-            XPathExpression xp=xpf.newXPath().compile("module [@name=\""+module+"\"]");
+            XPathExpression xp=xpf.newXPath().compile(elementName + " [@name=\""+module+"\"]");
             if(xp.evaluate(dependencies,XPathConstants.NODE)==null) {
-                Element moduleEl=doc.createElement("module");
+                Element moduleEl=doc.createElement(elementName);
                 moduleEl.setAttribute("name",module);
                 dependencies.appendChild(moduleEl);
             }
